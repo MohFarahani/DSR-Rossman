@@ -50,7 +50,8 @@ def fillna(df):
     df = fillna_mean(df,columns_mean)
 
     columns_most = ['Promo','SchoolHoliday','StateHoliday']
-    train = fillna_most(df,columns_most)
+    df = fillna_most(df,columns_most)
+    return df
 
 def encoding(df):
     pass
@@ -58,11 +59,6 @@ def encoding(df):
 def new_features(df):
     pass
 
-def drop_columns(df,columns):
-    for col in columns:
-        if col in df.columns:
-            df.drop(columns=[col],inplace=True)
-    return df
 
 def predict(train):
     store = pd.read_csv(PATH_STORE)
@@ -72,7 +68,7 @@ def predict(train):
     train_full = encoding(train_full)
     train_full = new_features(train_full)
     drop_columns_list = ['Store','Customer','Date','Open']
-    train_full = drop_columns(drop_columns_list)
+    train_full.drop(columns=drop_columns_list,inplace=True, error='ignore')
     train_full.dropna(inplace=True)
     xgb = pickle.load(open(PATH_MODEL, "rb"))
     return xgb.predict(train)
