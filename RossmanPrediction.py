@@ -18,8 +18,8 @@ def metric(preds, actuals):
     return 100 * np.linalg.norm((actuals - preds) / actuals) / np.sqrt(preds.shape[0])
 
 def evaluate(path_X_csv,path_y_csv):
-    train = pd.read_csv(path_X_csv)
-    y_real = pd.read_csv(path_y_csv)
+    train = pd.read_csv(path_X_csv, parse_dates=True, low_memory = False, index_col='Date')
+    y_real = pd.read_csv(path_y_csv, low_memory=False)
 
     if 'Open' in train.columns:
         mask_open = train['Open']==1
@@ -57,6 +57,7 @@ def fillna(df):
     columns_most = ['Promo','SchoolHoliday','StateHoliday']
     df = fillna_most(df,columns_most)
 
+    return df
 
 def target_encoding(X, y):
     
@@ -67,6 +68,7 @@ def target_encoding(X, y):
     return X
 
 def new_features(df):
+
     df = RossmanFeatures.features_by_m(df)
     df = RossmanFeatures.features_by_t(df)
     df = RossmanFeatures.add_is_promo_month(df)
@@ -74,13 +76,8 @@ def new_features(df):
     df = RossmanFeatures.add_customer_per_store(df)
     df = RossmanFeatures.log_target(df)
 
-    
-
-def drop_columns(df,columns):
-    for col in columns:
-        if col in df.columns:
-            df.drop(columns=[col],inplace=True)
     return df
+
 
 def predict(train):
     store = pd.read_csv(PATH_STORE)
@@ -90,7 +87,7 @@ def predict(train):
     train_full = encoding(train_full)
     train_full = new_features(train_full)
     drop_columns_list = ['Store','Customer','Date','Open']
-    train_full = train_full.drop(labels=drop_columns_list, axis=1, errors='ignore')
+    train_full = train_full.drop(labels=drop_columns_list, inplace=True, axis=1, errors='ignore')
     train_full.dropna(inplace=True)
     xgb = pickle.load(open(PATH_MODEL, "rb"))
     return xgb.predict(train)
