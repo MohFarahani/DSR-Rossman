@@ -2,7 +2,10 @@ import pandas as pd
 import numpy as np
 import sys
 import pickle
-import xgboost
+import xgboost as xgb
+import category_encoders as ce
+import math
+import RossmanFeatures
 
 
 PATH_STORE = 'modified_store.csv'
@@ -22,7 +25,9 @@ def evaluate(path_X_csv,path_y_csv):
         mask_open = train['Open']==1
         train = train[mask_open]
         y_real = y_real[mask_open]
+
     y_predict = predict(train)
+
     RMSPE = metric(y_predict, y_real)
     print("RMSPE: ",RMSPE)
     return RMSPE
@@ -50,13 +55,26 @@ def fillna(df):
     df = fillna_mean(df,columns_mean)
 
     columns_most = ['Promo','SchoolHoliday','StateHoliday']
-    train = fillna_most(df,columns_most)
+    df = fillna_most(df,columns_most)
 
-def encoding(df):
-    pass
+
+def target_encoding(X, y):
+    
+    ce_te = ce.TargetEncoder(cols=['Store', 'StateHoliday', 'StoreType', 'Assortment', 'PromoInterval','month_str'])
+    ce_te.fit(X,y)
+    X = ce_te.transform(X)
+    
+    return X
 
 def new_features(df):
-    pass
+    df = RossmanFeatures.features_by_m(df)
+    df = RossmanFeatures.features_by_t(df)
+    df = RossmanFeatures.add_is_promo_month(df)
+    df = RossmanFeatures.add_features_by_t(df)
+    df = RossmanFeatures.add_customer_per_store(df)
+    df = RossmanFeatures.log_target(df)
+
+    
 
 def drop_columns(df,columns):
     for col in columns:
@@ -68,11 +86,11 @@ def predict(train):
     store = pd.read_csv(PATH_STORE)
     train = clean(train)
     train = fillna(train)
-    train_full = pd.merge(train,store, on='Store', how='inner')
+    train_full = pd.merge(train,store, on='Store', how='inner').set_index='Date'
     train_full = encoding(train_full)
     train_full = new_features(train_full)
     drop_columns_list = ['Store','Customer','Date','Open']
-    train_full = drop_columns(drop_columns_list)
+    train_full = train_full.drop(labels=drop_columns_list, axis=1, errors='ignore')
     train_full.dropna(inplace=True)
     xgb = pickle.load(open(PATH_MODEL, "rb"))
     return xgb.predict(train)
