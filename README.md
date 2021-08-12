@@ -20,7 +20,7 @@ Prediction of future Sales volume for Rossman stores
 
 ### Instructions:
 
-*Python3 & Jupyter Notebook/Lab is required*
+*Python3.9 & Jupyter Notebook/Lab is required, so please install if missing*
 
 1. Run in command line:
 
