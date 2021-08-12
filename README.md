@@ -25,6 +25,7 @@ Prediction of future Sales volume for Rossman stores
 1. Run in command line:
 
 `pip3 install -r requirements.txt` 
+`conda install scikit-learn` 
 
 2. Open *test_prediction.ipynb* in Jupyter Notebook/Lab
 
