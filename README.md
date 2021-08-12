@@ -36,6 +36,9 @@ Prediction of future Sales volume for Rossman stores
 2. Open *test_prediction.ipynb* in Jupyter Notebook/Lab
 
 Set *PATH_TEST* to the location of test csv file.
+```python
+PATH_TEST = "data/holdout.csv"
+```
 
 3. Run the next cell
 
