@@ -14,6 +14,8 @@ PATH_TRAIN = "data/train.csv"
 PATH_STORE = "data/store.csv"
 PATH_STORE_MODIFIED = "data/store_modified.csv"
 MODEL_NAME = "XGBoost.txt"
+LABEL_ENCODE="LabelEncode"
+TARGET_ENCODE="TargetEncode"
 
 # Define RMSPE for evaluation
 def metric(preds, actuals):
@@ -122,17 +124,18 @@ class Rossman():
         
         return train_full,store
     
-    
+
     def encode_choice(self):
                                  
         encode_dict = {}
         encode_dict['OneHot'] = ['StoreType','Assortment','PromoInterval']
         encode_dict['Label'] = ['StateHoliday']
-        encode_dict['Freq'] = ['Store'] 
+        encode_dict['Freq'] = [] 
+        encode_dict['Target'] = ['Store'] 
         return encode_dict
-    
-                                 
-    def encoding(self,train_full):
+
+
+    def encoding(self,train_full,TRAIN=True):
                                  
         encode_dict = self.encode_choice()
         for key,value in encode_dict.items():
@@ -143,15 +146,40 @@ class Rossman():
                         train_full = pd.get_dummies(train_full, columns = [col])
                         
             if key=='Label':
-                for col in value:
-                    if col in train_full.columns:
-                       train_full[col] = LabelEncoder().fit_transform(train_full[col])
+                if TRAIN==True:
+                    le= LabelEncoder()
+                    for col in value:
+                        if col in train_full.columns: 
+                           train_full[col] = le.fit_transform(train_full[col])
+                    LABEL_FILE = open(LABEL_ENCODE,"wb")
+                    pickle.dump(le,LABEL_FILE)
+                    LABEL_FILE.close()
+                else:
+                    LABEL_FILE = open(LABEL_ENCODE,"rb")
+                    le = pickle.load(LABEL_FILE)
+                    LABEL_FILE.close()
+                    for col in value:
+                        if col in train_full.columns: 
+                           train_full[col] = le.fit(train_full[col])
                     
-            if key=='Freq':
+                    
+            elif key=='Freq':
                 for col in value:
                     if col in train_full.columns:
                         freq = train_full.groupby(col).size()/len(train_full)
                         train_full.loc[:,col+'_freq'] = train_full.loc[:,col].map(freq)
+            if key=='Target': 
+                if TRAIN==True:
+                    te= TargetEncoder(cols=value)
+                    te.fit_transform(train_full,train_full['Sales'])
+                    TARGET_FILE = open(TARGET_ENCODE,"wb")
+                    pickle.dump(le,TARGET_FILE)
+                    TARGET_FILE.close()
+                else:
+                    TARGET_FILE = open(TARGET_ENCODE,"rb")
+                    te = pickle.load(TARGET_FILE)
+                    TARGET_FILE.close()
+                    te.fit(train_full)
                 
         return train_full
     
@@ -243,7 +271,7 @@ class Rossman():
         test = self.fillna_train(test)
         test_full = self.merge_train_store(test,store)
         test_full,_ = self.add_features(test_full,store,UPDATE=True)
-        test_full = self.encoding(test_full)
+        test_full = self.encoding(test_full,TRAIN=False)
         test_full = self.drop_columns(test_full)
         test_full.dropna()
         X = test_full.drop(columns=['Sales'])
