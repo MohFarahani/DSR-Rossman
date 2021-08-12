@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import sys
 import pickle
-import math
 import xgboost as xgb
 from sklearn.preprocessing import  LabelEncoder
 from sklearn.model_selection import train_test_split
@@ -11,18 +10,14 @@ from sklearn.model_selection import train_test_split
 
 # PATH to Input data
 PATH_TRAIN = "data/train.csv"
+PATH_TEST = "data/holdout.csv"
 PATH_STORE = "data/store.csv"
 PATH_STORE_MODIFIED = "data/store_modified.csv"
 MODEL_NAME = "XGBoost.txt"
 LABEL_ENCODE="LabelEncode"
 TARGET_ENCODE="TargetEncode"
+COLUMNS_NAME = "Columns_name"
 
-# Define RMSPE for evaluation
-def metric(preds, actuals):
-    preds = preds.reshape(-1)
-    actuals = actuals.reshape(-1)
-    assert preds.shape == actuals.shape
-    return 100 * np.linalg.norm((actuals - preds) / actuals) / np.sqrt(preds.shape[0])
 
 class Rossman():
     
@@ -35,12 +30,19 @@ class Rossman():
         self.store = None
         self.model = None
     
+
+    # Define RMSPE for evaluation
+    def metric(self, preds, actuals):
+        preds = preds.reshape(-1)
+        actuals = actuals.reshape(-1)
+        assert preds.shape == actuals.shape
+        return 100 * np.linalg.norm((actuals - preds) / actuals) / np.sqrt(preds.shape[0])
     
-    def read_data(self,path_train,path_store):
+    def read_data(self,PATH_TRAIN,PATH_STORE):
         
-        self.train = pd.read_csv(path_train, parse_dates=True, low_memory = False, index_col=None)
+        self.train = pd.read_csv(PATH_TRAIN, parse_dates=True, low_memory = False, index_col=None)
         self.train['Date'] = pd.to_datetime(self.train["Date"])
-        self.store = pd.read_csv(path_store, low_memory=False)
+        self.store = pd.read_csv(PATH_STORE, low_memory=False)
         return self.train,self.store
                                  
     def clean(self,df):
@@ -124,22 +126,22 @@ class Rossman():
         
         return train_full,store
     
-
+    
     def encode_choice(self):
                                  
         encode_dict = {}
-        encode_dict['OneHot'] = ['StoreType','Assortment','PromoInterval']
-        encode_dict['Label'] = ['StateHoliday']
-        encode_dict['Freq'] = [] 
-        encode_dict['Target'] = ['Store'] 
+        encode_dict['OneHot'] = ['StoreType','Assortment','PromoInterval', 'StateHoliday']
+        #encode_dict['Label'] = []
+        encode_dict['Freq'] = ['Store'] 
+        #encode_dict['Target'] = [] 
         return encode_dict
-
-
+    
+                                 
     def encoding(self,train_full,TRAIN=True):
                                  
         encode_dict = self.encode_choice()
         for key,value in encode_dict.items():
-            
+            print(f"Key: {key} Value:{value}")
             if key=='OneHot':
                 for col in value:
                     if col in train_full.columns:
@@ -147,7 +149,7 @@ class Rossman():
                         
             if key=='Label':
                 if TRAIN==True:
-                    le= LabelEncoder()
+                    le = LabelEncoder()
                     for col in value:
                         if col in train_full.columns: 
                            train_full[col] = le.fit_transform(train_full[col])
@@ -157,6 +159,7 @@ class Rossman():
                 else:
                     LABEL_FILE = open(LABEL_ENCODE,"rb")
                     le = pickle.load(LABEL_FILE)
+                    print(le)
                     LABEL_FILE.close()
                     for col in value:
                         if col in train_full.columns: 
@@ -206,8 +209,8 @@ class Rossman():
             """
             Get log of the target as it has a better distribution.
             """
-            y_train_log = np.log2(y_train)
-            y_test_log =  np.log2(y_test)
+            y_train_log = np.log(y_train)
+            y_test_log =  np.log(y_test)
 
             return y_train, y_test
         
@@ -244,11 +247,11 @@ class Rossman():
         # fit model
         model.fit(X_train, y_train)
         y_predict = model.predict(X_test)
-        RMSPE = metric(y_predict, y_test.to_numpy())
+        RMSPE = self.metric(y_predict, y_test.to_numpy())
         print("RMSPE: ",RMSPE)
-        return model,RMSPE
+        return model
     
-    def training(self,train_path,store_path,path_store_modified,model_name):
+    def training(self,train_path,store_path,PATH_STORE_MODIFIED):
         train,store = self.read_data(train_path,store_path)
         train = self.clean(train)
         train = self.fillna_train(train)
@@ -260,30 +263,41 @@ class Rossman():
         X_train, X_test, y_train, y_test = self.X_y(train_full)
         #self.model = self.model_xgb(X_train, X_test, y_train, y_test)
         self.model = self.xgb_simple(X_train, X_test, y_train, y_test)
-        store.to_csv(path_store_modified)
-        self.store_modified_path = path_store_modified
-        self.model.save_model(model_name)
+        print("STORE WHEN TRAINING")
+        print(store.columns)
+        print(store)
+        store.to_csv(PATH_STORE_MODIFIED)
+        self.store_modified_path = PATH_STORE_MODIFIED
+        self.model.save_model(MODEL_NAME)
         
         
-    def testing(self,path_test,path_store_modified,MODEL_NAME):
-        test,store = self.read_data(path_test,path_store_modified)
+    def testing(self,path_test, MODEL_NAME="XGBoost1500.txt", PATH_STORE_MODIFIED="data/store_modified.csv"):
+        print(f"Read test & store data")
+        test,store = self.read_data(path_test,PATH_STORE_MODIFIED)
+        store = store.drop(labels='Unnamed: 0', axis=1)
+        print(f"Clean test data & fill nulls")
         test = self.clean(test)
         test = self.fillna_train(test)
+        print(f"Merge train & store")
         test_full = self.merge_train_store(test,store)
         test_full,_ = self.add_features(test_full,store,UPDATE=True)
+        print(f"Add features")
+
         test_full = self.encoding(test_full,TRAIN=False)
+        print(f"Add encoding")
         test_full = self.drop_columns(test_full)
         test_full.dropna()
         X = test_full.drop(columns=['Sales'])
         y = test_full['Sales']
         self.model = xgb.XGBRegressor()
         self.model.load_model(MODEL_NAME)
+        print(f"Running predictions")
         y_predict = self.model.predict(X)
-        RMSPE = metric(y_predict, y.to_numpy())
-        return RMSPE
-      
+        RMSPE = self.metric(np.expm1(y_predict), y.to_numpy())
+        print("RMSPE: ",RMSPE)      
+                            
 
 if __name__ == "__main__":
     rossman = Rossman()
     RMSPE = rossman.training(PATH_TRAIN,PATH_STORE,PATH_STORE_MODIFIED,MODEL_NAME)   
-    print("RMSPE: ",RMSPE)          
+    print("RMSPE training: ",RMSPE)          
