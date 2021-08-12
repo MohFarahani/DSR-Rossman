@@ -21,11 +21,16 @@ Prediction of future Sales volume for Rossman stores
 ### Instructions:
 
 *Python3.9 & Jupyter Notebook/Lab is required, so please install if missing*
+`conda create --name py35 python=3.9`
+
+`conda install -c conda-forge jupyterlab`
 
 1. Run in command line:
 
 `pip3 install -r requirements.txt` 
+
 `conda install scikit-learn` 
+
 
 2. Open *test_prediction.ipynb* in Jupyter Notebook/Lab
 
